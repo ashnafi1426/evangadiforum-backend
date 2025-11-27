@@ -1,7 +1,7 @@
-const db = require("../db/dbConfig");
+const supabase = require("../config/supabaseClient");
 const { StatusCodes } = require("http-status-codes");
 
-// ✅ Create question
+// ✅ Create a new question
 const askQuestion = async (req, res) => {
   const { title, description } = req.body;
   const userId = req.user.user_id;
@@ -11,14 +11,17 @@ const askQuestion = async (req, res) => {
   }
 
   try {
-    await db.query(
-      "INSERT INTO questions (user_id, title, description) VALUES (?, ?, ?)",
-      [userId, title, description]
-    );
+    const { data, error } = await supabase
+      .from("questions")
+      .insert([{ user_id: userId, title, description }])
+      .select()
+      .single();
 
-    res.status(StatusCodes.CREATED).json({ msg: "Question posted successfully!" });
+    if (error) throw error;
+
+    res.status(StatusCodes.CREATED).json({ msg: "Question posted successfully!", question: data });
   } catch (err) {
-    console.error("DB error:", err);
+    console.error("Supabase error:", err);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: "Database error", error: err.message });
   }
 };
@@ -26,38 +29,65 @@ const askQuestion = async (req, res) => {
 // ✅ Get all questions with username
 const getAllQuestions = async (req, res) => {
   try {
-    const [questions] = await db.query(`
-      SELECT q.id, q.title, q.description, q.created_at, u.username
-      FROM questions q
-      JOIN users u ON q.user_id = u.id
-      ORDER BY q.created_at DESC
-    `);
+    const { data: questions, error } = await supabase
+      .from("questions")
+      .select(`
+        id,
+        title,
+        description,
+        created_at,
+        usere!inner(username)
+      `)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
 
     res.status(StatusCodes.OK).json(questions);
   } catch (err) {
+    console.error("Supabase error:", err);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: "Database error", error: err.message });
   }
 };
+
+// ✅ Get a single question by ID along with its answers
 const getQuestionById = async (req, res) => {
   const { id } = req.params;
+
   try {
-    const [[question]] = await db.query(
-      "SELECT q.id, q.title, q.description, u.username FROM questions q JOIN users u ON q.user_id = u.id WHERE q.id = ?",
-      [id]
-    );
+    // Get the question with user info
+    const { data: [question], error: questionError } = await supabase
+      .from("questions")
+      .select(`
+        id,
+        title,
+        description,
+        created_at,
+        usere!inner(username)
+      `)
+      .eq("id", id);
 
-    if (!question) {
-      return res.status(StatusCodes.NOT_FOUND).json({ msg: "Question not found" });
-    }
+    if (questionError) throw questionError;
+    if (!question) return res.status(StatusCodes.NOT_FOUND).json({ msg: "Question not found" });
 
-    const [answers] = await db.query(
-      "SELECT a.id, a.answer, u.username FROM answers a JOIN users u ON a.user_id = u.id WHERE a.question_id = ? ORDER BY a.created_at DESC",
-      [id]
-    );
+    // Get answers for the question
+    const { data: answers, error: answersError } = await supabase
+      .from("answers")
+      .select(`
+        id,
+        answer,
+        created_at,
+        usere!inner(username)
+      `)
+      .eq("question_id", id)
+      .order("created_at", { ascending: false });
+
+    if (answersError) throw answersError;
 
     res.status(StatusCodes.OK).json({ question, answers });
   } catch (err) {
+    console.error("Supabase error:", err);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: "Database error", error: err.message });
   }
 };
-module.exports = { askQuestion, getAllQuestions,getQuestionById };
+
+module.exports = { askQuestion, getAllQuestions, getQuestionById };

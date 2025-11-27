@@ -1,11 +1,13 @@
 const express = require("express");
 const cors = require("cors");
-const db = require("./db/dbConfig");
+const supabase = require("./config/supabaseClient"); // updated
 const app = express();
-const PORT = 5500;
+const PORT = process.env.PORT;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin:"http://localhost:3000"
+}));
 app.use(express.json());
 
 // Routes
@@ -19,13 +21,6 @@ app.use("/api/questions", questionRoutes);
 app.use("/api/answers", answerRoutes);
 
 // Start server
-async function start() {
-  try {
-    await db.execute("SELECT 1");
-    console.log("✅ Database connected");
-  } catch (err) {
-    console.log("❌ DB connection failed:", err.message);
-  }
-  app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-}
-start();
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
