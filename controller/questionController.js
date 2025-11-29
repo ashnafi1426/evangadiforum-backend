@@ -1,4 +1,4 @@
-const supabase = require("../config/supabaseClient");
+const QuestionService = require("../services/questionService");
 const { StatusCodes } = require("http-status-codes");
 
 // ✅ Create a new question
@@ -11,37 +11,18 @@ const askQuestion = async (req, res) => {
   }
 
   try {
-    const { data, error } = await supabase
-      .from("questions")
-      .insert([{ user_id: userId, title, description }])
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    res.status(StatusCodes.CREATED).json({ msg: "Question posted successfully!", question: data });
+    const question = await QuestionService.createQuestion({ userId, title, description });
+    res.status(StatusCodes.CREATED).json({ msg: "Question posted successfully!", question });
   } catch (err) {
     console.error("Supabase error:", err);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: "Database error", error: err.message });
   }
 };
 
-// ✅ Get all questions with username
+// ✅ Get all questions
 const getAllQuestions = async (req, res) => {
   try {
-    const { data: questions, error } = await supabase
-      .from("questions")
-      .select(`
-        id,
-        title,
-        description,
-        created_at,
-        usere!inner(username)
-      `)
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-
+    const questions= await QuestionService.fetchAllQuestions();
     res.status(StatusCodes.OK).json(questions);
   } catch (err) {
     console.error("Supabase error:", err);
@@ -49,41 +30,18 @@ const getAllQuestions = async (req, res) => {
   }
 };
 
-// ✅ Get a single question by ID along with its answers
+// ✅ Get question by ID
 const getQuestionById = async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Get the question with user info
-    const { data: [question], error: questionError } = await supabase
-      .from("questions")
-      .select(`
-        id,
-        title,
-        description,
-        created_at,
-        usere!inner(username)
-      `)
-      .eq("id", id);
+    const data = await QuestionService.fetchQuestionById(id);
 
-    if (questionError) throw questionError;
-    if (!question) return res.status(StatusCodes.NOT_FOUND).json({ msg: "Question not found" });
+    if (!data) {
+      return res.status(StatusCodes.NOT_FOUND).json({ msg: "Question not found" });
+    }
 
-    // Get answers for the question
-    const { data: answers, error: answersError } = await supabase
-      .from("answers")
-      .select(`
-        id,
-        answer,
-        created_at,
-        usere!inner(username)
-      `)
-      .eq("question_id", id)
-      .order("created_at", { ascending: false });
-
-    if (answersError) throw answersError;
-
-    res.status(StatusCodes.OK).json({ question, answers });
+    res.status(StatusCodes.OK).json(data);
   } catch (err) {
     console.error("Supabase error:", err);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: "Database error", error: err.message });

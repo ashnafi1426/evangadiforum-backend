@@ -4,8 +4,7 @@ const jwt = require("jsonwebtoken");
 const register = async (req, res) => {
   const { firstname, lastname, username, email, password } = req.body;
   if (!firstname || !lastname || !username || !email || !password) {
-    return res
-      .status(StatusCodes.BAD_REQUEST)
+    return res.status(StatusCodes.BAD_REQUEST)
       .json({ msg: "All fields are required" });
   }
 

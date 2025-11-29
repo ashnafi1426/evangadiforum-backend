@@ -1,52 +1,35 @@
-const supabase = require("../config/supabaseClient");
+const AnswerService = require("../services/answerService");
 const { StatusCodes } = require("http-status-codes");
 
-// ✅ Get answers by question
+// ✅ Get answers for a question
 const getAnswersByQuestion = async (req, res) => {
+  const { question_id } = req.params;
+
   try {
-    const { question_id } = req.params;
-
-    const { data: answers, error } = await supabase
-      .from("answers")
-      .select(`
-        id,
-        answer,
-        created_at,
-        usere!inner(username)
-      `)
-      .eq("question_id", question_id)
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-
+    const answers = await AnswerService.fetchAnswersByQuestion(question_id);
     res.status(StatusCodes.OK).json(answers);
   } catch (err) {
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: err.message });
+    console.error("Supabase error:", err);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: "Database error", error: err.message });
   }
 };
 
 // ✅ Post a new answer
 const postAnswer = async (req, res) => {
+  const { question_id } = req.params;
+  const { answer } = req.body;
+  const user_id = req.user.user_id;
+
+  if (!answer) {
+    return res.status(StatusCodes.BAD_REQUEST).json({ msg: "Answer cannot be empty" });
+  }
+
   try {
-    const { question_id } = req.params;
-    const { answer } = req.body;
-    const userId = req.user.user_id;
-
-    if (!answer) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ msg: "Answer cannot be empty" });
-    }
-
-    const { data, error } = await supabase
-      .from("answers")
-      .insert([{ question_id, user_id: userId, answer }])
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    res.status(StatusCodes.CREATED).json({ msg: "Answer posted successfully!", answer: data });
+    const newAnswer = await AnswerService.createAnswer({ question_id, user_id, answer });
+    res.status(StatusCodes.CREATED).json({ msg: "Answer posted successfully!", answer: newAnswer });
   } catch (err) {
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: err.message });
+    console.error("Supabase error:", err);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: "Database error", error: err.message });
   }
 };
 
